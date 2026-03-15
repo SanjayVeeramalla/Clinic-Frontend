@@ -75,7 +75,7 @@ export default function DoctorsPublicPage() {
             {doctors.map(doctor => (
               <div key={doctor.doctorId} className="doctor-card">
                 <div className="doctor-avatar">{initials(doctor.fullName)}</div>
-                <div className="doctor-name">Dr. {doctor.fullName}</div>
+                <div className="doctor-name"> {doctor.fullName}</div>
                 <div className="doctor-spec">{doctor.specialization}</div>
                 <div className="doctor-meta">
                   <span>🎓 {doctor.yearsOfExperience} yrs exp</span>
