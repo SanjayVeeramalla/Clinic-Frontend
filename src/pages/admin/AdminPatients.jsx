@@ -10,17 +10,25 @@ export default function AdminPatients() {
   const [deactivating, setDeactivating] = useState(null)
   const [message, setMessage] = useState({ text: '', type: '' })
   const [viewPatient, setViewPatient] = useState(null)
+  const [fetchError, setFetchError] = useState('')
 
   const fetchPatients = useCallback(async (q = '') => {
     setLoading(true)
+    setFetchError('')
     try {
       const res = await adminApi.getPatients(q || undefined)
-      setPatients(res.data.data || [])
-    } catch { setPatients([]) }
+      // Handle different response shapes
+      const data = res.data?.data ?? res.data ?? []
+      setPatients(Array.isArray(data) ? data : [])
+    } catch (err) {
+      console.error('Fetch patients error:', err)
+      setFetchError(err.response?.data?.message || err.message || 'Failed to load patients.')
+      setPatients([])
+    }
     setLoading(false)
   }, [])
 
-  useEffect(() => { fetchPatients() }, [])
+  useEffect(() => { fetchPatients() }, [fetchPatients])
 
   const handleSearch = e => {
     e.preventDefault()
@@ -42,8 +50,10 @@ export default function AdminPatients() {
   const handleViewDetail = async (patientId) => {
     try {
       const res = await adminApi.getPatient(patientId)
-      setViewPatient(res.data.data)
-    } catch { setMessage({ text: 'Could not load patient details.', type: 'error' }) }
+      setViewPatient(res.data?.data ?? res.data)
+    } catch (err) {
+      setMessage({ text: err.response?.data?.message || 'Could not load patient details.', type: 'error' })
+    }
   }
 
   return (
@@ -51,6 +61,7 @@ export default function AdminPatients() {
       <PageHeader title="Patients" subtitle="View and manage patient accounts" />
 
       {message.text && <Alert type={message.type}>{message.text}</Alert>}
+      {fetchError && <Alert type="error">⚠ {fetchError}</Alert>}
 
       <form className="filter-bar" onSubmit={handleSearch}>
         <input
@@ -68,8 +79,13 @@ export default function AdminPatients() {
         )}
       </form>
 
-      {loading ? <LoadingCenter /> : patients.length === 0 ? (
-        <EmptyState icon="🧑‍⚕️" message={search ? `No patients found for "${search}"` : "No patients registered yet."} />
+      {loading ? (
+        <LoadingCenter />
+      ) : fetchError ? null : patients.length === 0 ? (
+        <EmptyState
+          icon="🧑‍⚕️"
+          message={search ? `No patients found for "${search}"` : 'No patients registered yet.'}
+        />
       ) : (
         <div className="table-wrap">
           <table>
@@ -114,7 +130,6 @@ export default function AdminPatients() {
         </div>
       )}
 
-      {/* Patient Detail Modal */}
       {viewPatient && (
         <Modal title={`Patient: ${viewPatient.fullName}`} onClose={() => setViewPatient(null)}>
           <dl style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem 1.5rem', fontSize: '0.9rem' }}>
