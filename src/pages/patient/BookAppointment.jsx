@@ -148,7 +148,7 @@ export default function BookAppointment() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
             <button className="btn btn-ghost btn-sm" onClick={() => setStep(1)}>← Back</button>
             <div>
-              <strong>Dr. {selectedDoctor.fullName}</strong>
+              <strong> {selectedDoctor.fullName}</strong>
               <span className="text-muted" style={{ marginLeft: '0.5rem', fontSize: '0.875rem' }}>
                 {selectedDoctor.specialization} · ₹{selectedDoctor.consultationFee}
               </span>
