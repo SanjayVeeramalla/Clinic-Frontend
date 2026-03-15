@@ -20,9 +20,9 @@ export default function PatientAppointments() {
   const [cancelReason, setCancelReason] = useState('')
   const [cancelLoading, setCancelLoading] = useState(false)
   const [message, setMessage] = useState('')
-  const [selectedAppt, setSelectedAppt] = useState(null)
+  const [detailModal, setDetailModal] = useState(null)
 
-  const fetch = async () => {
+  const fetchAppointments = async () => {
     setLoading(true)
     try {
       const params = statusFilter ? { statusId: statusFilter } : {}
@@ -32,26 +32,34 @@ export default function PatientAppointments() {
     setLoading(false)
   }
 
-  useEffect(() => { fetch() }, [statusFilter])
+  useEffect(() => { fetchAppointments() }, [statusFilter])
 
   const handleCancel = async () => {
     if (!cancelReason.trim()) return
     setCancelLoading(true)
     try {
       await patientApi.cancelAppointment(cancelModal, { cancellationReason: cancelReason })
-      setMessage('Appointment cancelled.')
+      setMessage('Appointment cancelled successfully.')
       setCancelModal(null)
       setCancelReason('')
-      fetch()
+      fetchAppointments()
     } catch (err) {
       setMessage(err.response?.data?.message || 'Cancellation failed.')
     } finally { setCancelLoading(false) }
   }
 
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
   const formatDate = (dateStr) => {
-    if (!dateStr) return ''
+    if (!dateStr) return '—'
     const parts = dateStr.toString().split('-')
-    return `${parts[2]} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(parts[1])-1]} ${parts[0]}`
+    return `${parts[2]} ${months[parseInt(parts[1])-1]} ${parts[0]}`
+  }
+
+  const getDateParts = (dateStr) => {
+    if (!dateStr) return { day: '?', month: '?' }
+    const parts = dateStr.toString().split('-')
+    return { day: parts[2], month: months[parseInt(parts[1])-1] }
   }
 
   return (
@@ -61,7 +69,11 @@ export default function PatientAppointments() {
         action={<Link to="/patient/book" className="btn btn-primary btn-sm">+ Book New</Link>}
       />
 
-      {message && <Alert type={message.includes('cancelled') ? 'success' : 'error'}>{message}</Alert>}
+      {message && (
+        <Alert type={message.includes('successfully') ? 'success' : 'error'}>
+          {message}
+        </Alert>
+      )}
 
       <div className="tabs">
         {STATUS_FILTERS.map(f => (
@@ -80,33 +92,23 @@ export default function PatientAppointments() {
           <Link to="/patient/book" className="btn btn-primary btn-sm">Book Appointment</Link>
         } />
       ) : appointments.map(appt => {
-        const parts = appt.appointmentDate?.toString().split('-') || []
-        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+        const { day, month } = getDateParts(appt.appointmentDate)
         return (
           <div key={appt.appointmentId} className="appointment-card">
             <div className="appt-date-block">
-              <div className="appt-date-day">{parts[2]}</div>
-              <div className="appt-date-month">{months[parseInt(parts[1])-1]}</div>
+              <div className="appt-date-day">{day}</div>
+              <div className="appt-date-month">{month}</div>
             </div>
             <div className="appt-info">
               <div className="appt-doctor"> {appt.doctorName}</div>
               <div className="appt-spec">{appt.specialization}</div>
               <div className="appt-time">🕐 {appt.appointmentTime}</div>
-              {appt.reasonForVisit && <div className="appt-reason">"{appt.reasonForVisit}"</div>}
+              {appt.reasonForVisit && (
+                <div className="appt-reason">"{appt.reasonForVisit}"</div>
+              )}
               {appt.cancellationReason && (
                 <div className="text-sm text-muted" style={{ marginTop: '0.25rem' }}>
-                  Cancelled: {appt.cancellationReason}
-                </div>
-              )}
-              {appt.prescription && (
-                <div className="prescription-block">
-                  <h4>Prescription</h4>
-                  <dl>
-                    {appt.prescription.diagnosis && <><dt>Diagnosis</dt><dd>{appt.prescription.diagnosis}</dd></>}
-                    {appt.prescription.medications && <><dt>Medications</dt><dd>{appt.prescription.medications}</dd></>}
-                    {appt.prescription.instructions && <><dt>Instructions</dt><dd>{appt.prescription.instructions}</dd></>}
-                    {appt.prescription.followUpDate && <><dt>Follow-up</dt><dd>{formatDate(appt.prescription.followUpDate)}</dd></>}
-                  </dl>
+                  ❌ {appt.cancellationReason}
                 </div>
               )}
             </div>
@@ -122,7 +124,7 @@ export default function PatientAppointments() {
               )}
               <button
                 className="btn btn-ghost btn-sm"
-                onClick={() => setSelectedAppt(selectedAppt?.appointmentId === appt.appointmentId ? null : appt)}
+                onClick={() => setDetailModal(appt)}
               >
                 Details
               </button>
@@ -131,7 +133,95 @@ export default function PatientAppointments() {
         )
       })}
 
-      {/* Cancel modal */}
+      {/* ── Details Modal ── */}
+      {detailModal && (
+        <Modal
+          title="Appointment Details"
+          onClose={() => setDetailModal(null)}
+          footer={
+            <button className="btn btn-ghost" onClick={() => setDetailModal(null)}>Close</button>
+          }
+        >
+          {/* Doctor & Date */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
+            <div>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Doctor</div>
+              <div style={{ fontWeight: 600 }}> {detailModal.doctorName}</div>
+              <div style={{ color: 'var(--accent)', fontSize: '0.875rem' }}>{detailModal.specialization}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Date & Time</div>
+              <div style={{ fontWeight: 600 }}>{formatDate(detailModal.appointmentDate)}</div>
+              <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>🕐 {detailModal.appointmentTime}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Status</div>
+              <StatusBadge status={detailModal.status} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Appointment ID</div>
+              <div style={{ fontFamily: 'monospace', fontSize: '0.875rem' }}>#{detailModal.appointmentId}</div>
+            </div>
+          </div>
+
+          {/* Reason */}
+          {detailModal.reasonForVisit && (
+            <div style={{ marginBottom: '1rem' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Reason for Visit</div>
+              <div style={{ background: 'var(--surface-2)', padding: '0.75rem', borderRadius: 'var(--radius)', fontSize: '0.9rem' }}>
+                {detailModal.reasonForVisit}
+              </div>
+            </div>
+          )}
+
+          {/* Doctor Notes */}
+          {detailModal.notes && (
+            <div style={{ marginBottom: '1rem' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Doctor's Notes</div>
+              <div style={{ background: 'var(--surface-2)', padding: '0.75rem', borderRadius: 'var(--radius)', fontSize: '0.9rem' }}>
+                {detailModal.notes}
+              </div>
+            </div>
+          )}
+
+          {/* Cancellation reason */}
+          {detailModal.cancellationReason && (
+            <div style={{ marginBottom: '1rem' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--danger)', marginBottom: '0.25rem' }}>Cancellation Reason</div>
+              <div style={{ background: 'var(--danger-light)', padding: '0.75rem', borderRadius: 'var(--radius)', fontSize: '0.9rem', color: 'var(--danger)' }}>
+                {detailModal.cancellationReason}
+              </div>
+            </div>
+          )}
+
+          {/* Prescription */}
+          {detailModal.prescription ? (
+            <div className="prescription-block">
+              <h4>📋 Prescription</h4>
+              <dl>
+                {detailModal.prescription.diagnosis && (
+                  <><dt>Diagnosis</dt><dd>{detailModal.prescription.diagnosis}</dd></>
+                )}
+                {detailModal.prescription.medications && (
+                  <><dt>Medications</dt><dd>{detailModal.prescription.medications}</dd></>
+                )}
+                {detailModal.prescription.instructions && (
+                  <><dt>Instructions</dt><dd>{detailModal.prescription.instructions}</dd></>
+                )}
+                {detailModal.prescription.followUpDate && (
+                  <><dt>Follow-up</dt><dd>{formatDate(detailModal.prescription.followUpDate)}</dd></>
+                )}
+              </dl>
+            </div>
+          ) : detailModal.status === 'Completed' ? (
+            <div className="alert alert-warning" style={{ marginTop: '0.5rem' }}>
+              No prescription has been added for this appointment yet.
+            </div>
+          ) : null}
+        </Modal>
+      )}
+
+      {/* ── Cancel Modal ── */}
       {cancelModal && (
         <Modal
           title="Cancel Appointment"
@@ -139,7 +229,11 @@ export default function PatientAppointments() {
           footer={
             <>
               <button className="btn btn-ghost" onClick={() => setCancelModal(null)}>Back</button>
-              <button className="btn btn-danger" onClick={handleCancel} disabled={cancelLoading || !cancelReason.trim()}>
+              <button
+                className="btn btn-danger"
+                onClick={handleCancel}
+                disabled={cancelLoading || !cancelReason.trim()}
+              >
                 {cancelLoading ? 'Cancelling…' : 'Confirm Cancel'}
               </button>
             </>
